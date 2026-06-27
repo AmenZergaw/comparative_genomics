@@ -108,4 +108,53 @@ def find_conserved_positions(sequences):
         if len(set(bases_at_this_pos)) == 1:
             conserved_count += 1 
         conservation_pct = (conserved_count/total_length) * 100
-    return conservation_pct  
+    return conservation_pct 
+
+
+
+def fetch_dna(genome, chrom, start, end):
+    # This URL talks to the DAS (Distributed Annotation System) server at UCSC
+    url = f"https://genome.ucsc.edu/cgi-bin/das/{genome}/dna?segment={chrom}:{start},{end}"
+    
+    try:
+        r = requests.get(url, timeout=10)
+        # We use 'regex' (re) to find the DNA string inside the XML response from UCSC
+        match = re.search(r'<DNA.*?>(.*?)</DNA>', r.text, re.DOTALL)
+        if match:
+            # Clean up newlines and spaces, then make it uppercase
+            return match.group(1).replace('\n', '').replace(' ', '').upper()
+    except Exception as e:
+        print(f"Error fetching: {e}")
+        return None
+    return None
+
+
+subset_to_fetch = all_hars[:20] 
+
+results = []
+print(f"Starting fetch for {len(subset_to_fetch)} HARs...")
+
+for har in subset_to_fetch:
+    print(f"Working on {har['name']}...")
+    
+    # Get Human (hg38)
+    h_dna = fetch_dna("hg38", har['chrom'], har['start'], har['end'])
+    # Get Chimp (panTro6)
+    c_dna = fetch_dna("panTro6", har['chrom'], har['start'], har['end'])
+    
+    if h_dna and c_dna:
+        results.append({
+            "name": har['name'],
+            "human": h_dna,
+            "chimp": c_dna
+        })
+    
+    
+    time.sleep(0.5)
+
+print("\n--- FETCH COMPLETE ---")
+# Let's see if there is a difference in the first HAR
+print(f"Comparison for {results[0]['name']}:")
+print(f"Human: {results[0]['human'][:50]}")
+print(f"Chimp: {results[0]['chimp'][:50]}")
+     
