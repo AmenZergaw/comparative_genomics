@@ -113,15 +113,12 @@ def find_conserved_positions(sequences):
 
 
 def fetch_dna(genome, chrom, start, end):
-    # This URL talks to the DAS (Distributed Annotation System) server at UCSC
     url = f"https://genome.ucsc.edu/cgi-bin/das/{genome}/dna?segment={chrom}:{start},{end}"
     
     try:
         r = requests.get(url, timeout=10)
-        # We use 'regex' (re) to find the DNA string inside the XML response from UCSC
         match = re.search(r'<DNA.*?>(.*?)</DNA>', r.text, re.DOTALL)
         if match:
-            # Clean up newlines and spaces, then make it uppercase
             return match.group(1).replace('\n', '').replace(' ', '').upper()
     except Exception as e:
         print(f"Error fetching: {e}")
@@ -129,32 +126,39 @@ def fetch_dna(genome, chrom, start, end):
     return None
 
 
-subset_to_fetch = all_hars[:20] 
 
-results = []
-print(f"Starting fetch for {len(subset_to_fetch)} HARs...")
+purines = {'A', 'G'}
+pyrimidines = {'C','T'}
+strong = {'C','G'}
+weak = {'A','T'}
 
-for har in subset_to_fetch:
-    print(f"Working on {har['name']}...")
+def analyze_mutations(h_dna, c_dna):
     
-    # Get Human (hg38)
-    h_dna = fetch_dna("hg38", har['chrom'], har['start'], har['end'])
-    # Get Chimp (panTro6)
-    c_dna = fetch_dna("panTro6", har['chrom'], har['start'], har['end'])
-    
-    if h_dna and c_dna:
-        results.append({
-            "name": har['name'],
-            "human": h_dna,
-            "chimp": c_dna
-        })
+    stats = {"subs": 0, "ti": 0, "tv": 0, "w_to_s": 0, "s_to_w": 0}
     
     
-    time.sleep(0.5)
+    for h, c in zip(h_dna.upper(), c_dna.upper()):
+        if h == c or h == 'N' or c == 'N':
+            continue
+            
+        stats["subs"] += 1
+        
+        
+        if (h in purines and c in purines) or (h in pyrimidines and c in pyrimidines):
+            stats["ti"] += 1
+        else:
+            stats["tv"] += 1
+            
+       
+        if c in weak and h in strong:
+            stats["w_to_s"] += 1
+        elif c in strong and h in weak:
+            stats["s_to_w"] += 1
+            
+    
+    raw_ratio = (stats["w_to_s"] + 1) / (stats["s_to_w"] + 1)
+    stats["bias_ratio"] = round(raw_ratio,2)
 
-print("\n--- FETCH COMPLETE ---")
-# Let's see if there is a difference in the first HAR
-print(f"Comparison for {results[0]['name']}:")
-print(f"Human: {results[0]['human'][:50]}")
-print(f"Chimp: {results[0]['chimp'][:50]}")
-     
+    return stats  
+
+
