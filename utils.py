@@ -1,3 +1,8 @@
+import requests
+import re
+import json
+
+
 def calculate_mismatches(seq1, seq2):
     if len(seq1) != len(seq2):
         return "Error: Sequences must be the same length"
